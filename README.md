@@ -18,7 +18,7 @@ pip install frida-tools
 2 - Dispositivo: Certifique-se de que o frida-server está rodando no celular e visível via USB.
 
 ## Execução
-1 - Edite o super_enumerator.py com o PACKAGE_NAME do seu alvo.
+1 - Edite o $0.py com o PACKAGE_NAME do seu alvo.
 2 - Inicie o motor de busca:
 ```bash
 python3 $0.py
