@@ -1,5 +1,5 @@
 # MemorySight
-MemorySight é uma solução de instrumentação dinâmica baseada em Frida, projetada para extrair segredos diretamente da memória RAM de processos de aplicativos.
+MemorySight é uma solução de instrumentação dinâmica baseada em Frida, projetada para extrair segredos diretamente da memória de processos de aplicativos.
 
 Diferente de scanners estáticos que analisam apenas o código-fonte, o MemorySight observa o que o aplicativo está processando agora. Ele caça padrões de dados sensíveis (PII, Credenciais, Infraestrutura) que muitas vezes estão protegidos no disco, mas expostos em texto claro na Heap durante a execução.
 
