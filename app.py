@@ -5,19 +5,41 @@ import socketserver
 import threading
 import sys
 
-PORTA_WEB = 1337  # Mude se desejar
-PACKAGE_NAME = "br.com.seu.app" # Ajuste para o pacote real do app
+PORTA_WEB = 1337
 
 findings = []
 seen_data = set()
 
+# CLI
+def print_usage():
+    print(f"""
+Uso:
+    python3 {sys.argv[0]} <package_name>
+    python3 {sys.argv[0]} --list
+
+Exemplo:
+    python3 {sys.argv[0]} com.exemplo.app
+""")
+
+def list_apps(device):
+    print("\n[+] Apps instalados no device:\n")
+    try:
+        apps = device.enumerate_applications()
+        for app in apps:
+            if app.identifier:
+                print(f"{app.name} -> {app.identifier}")
+    except Exception as e:
+        print(f"[ERRO] Falha ao listar apps: {e}")
+
+# HTML
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html>
 <head>
     <title>MemorySight</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <meta http-equiv="refresh" content="3"> <style>
+    <meta http-equiv="refresh" content="3">
+    <style>
         body { background: #0f0f0f; color: #00ff41; font-family: 'Courier New', Courier, monospace; }
         .table { color: #00ff41; border-color: #333; }
         .badge-infra { background-color: #ff4500; }
@@ -29,8 +51,8 @@ HTML_TEMPLATE = """
 <body>
     <div class="container-fluid mt-4">
         <h2 class="text-center">MemorySight: Dashboard</h2>
-        <p class="text-center text-secondary border-bottom pb-2">Monitorando: """ + PACKAGE_NAME + """</p>
-        
+        <p class="text-center text-secondary border-bottom pb-2">Monitorando: """ + "{PACKAGE}" + """</p>
+
         <div class="table-responsive">
             <table class="table table-dark table-hover mt-3">
                 <thead>
@@ -52,13 +74,14 @@ HTML_TEMPLATE = """
 </html>
 """
 
+# WEB SERVER
 class WebHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.send_header("Content-type", "text/html")
         self.end_headers()
+
         rows = ""
-        # Mostra os últimos achados no topo
         for f in reversed(findings):
             badge_class = f"badge-{f['category'].lower()}"
             rows += f"<tr>"
@@ -68,43 +91,71 @@ class WebHandler(http.server.SimpleHTTPRequestHandler):
             rows += f"<td class='addr'>{f['address']}</td>"
             rows += f"<td class='text-break'><code>{f['data']}</code></td>"
             rows += f"</tr>"
-        self.wfile.write(HTML_TEMPLATE.replace("{%ROWS%}", rows).encode())
+
+        html = HTML_TEMPLATE.replace("{%ROWS%}", rows).replace("{PACKAGE}", PACKAGE_NAME)
+        self.wfile.write(html.encode())
 
 def run_server():
-    
     socketserver.TCPServer.allow_reuse_address = True
     with socketserver.TCPServer(("", PORTA_WEB), WebHandler) as httpd:
         print(f"\n[!] DASHBOARD ONLINE: http://localhost:{PORTA_WEB}")
         httpd.serve_forever()
 
+# FRIDA CALLBACK
 def on_message(message, data):
     if message['type'] == 'send':
         payload = message['payload']
-        
+
         if payload['data'] not in seen_data:
             seen_data.add(payload['data'])
             findings.append(payload)
             print(f"[+] [{payload['category']}] Capturado: {payload['label']}")
 
+# MAIN
+if len(sys.argv) < 2:
+    print_usage()
+    sys.exit(1)
+
+if sys.argv[1] in ["-h", "--help"]:
+    print_usage()
+    sys.exit(0)
+
+device = frida.get_usb_device()
+
+if sys.argv[1] in ["--list", "-l"]:
+    list_apps(device)
+    sys.exit(0)
+
+PACKAGE_NAME = sys.argv[1]
 
 try:
-    device = frida.get_usb_device()
-    
     try:
         session = device.attach(PACKAGE_NAME)
-    except:
-        pid = device.spawn([PACKAGE_NAME])
-        session = device.attach(pid)
-        device.resume(pid)
+        print("[+] Anexado a processo em execução")
+    except frida.ProcessNotFoundError:
+        print("[!] App não está rodando. Tentando spawn...")
+
+        try:
+            pid = device.spawn([PACKAGE_NAME])
+            session = device.attach(pid)
+            device.resume(pid)
+            print("[+] App iniciado via spawn")
+        except Exception as e:
+            print(f"[ERRO] Não foi possível iniciar o app: {e}")
+            print("\nDicas:")
+            print("- Verifique o bundle id")
+            print("- Use --list para ver apps")
+            print("- No iOS, talvez precise abrir o app manualmente")
+            sys.exit(1)
 
     with open("scanner.js", "r") as f:
         script = session.create_script(f.read())
-    
+
     script.on('message', on_message)
     script.load()
 
     threading.Thread(target=run_server, daemon=True).start()
-    
+
     print("[*] Scanner carregado. Pressione Ctrl+C para encerrar.")
     sys.stdin.read()
 
