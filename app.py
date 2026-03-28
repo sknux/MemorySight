@@ -5,8 +5,21 @@ import socketserver
 import threading
 import sys
 
+def print_usage():
+    print(f"""
+Uso:
+    python3 {sys.argv[0]} <package_name>
+
+Exemplo:
+    python3 {sys.argv[0]} com.exemplo.app
+""")
+
+if len(sys.argv) < 2 or sys.argv[1] in ["-h", "--help"]:
+    print_usage()
+    sys.exit(1)
+
+PACKAGE_NAME = sys.argv[1]
 PORTA_WEB = 1337  # Mude se desejar
-PACKAGE_NAME = "br.com.seu.app" # Ajuste para o pacote real do app
 
 findings = []
 seen_data = set()
